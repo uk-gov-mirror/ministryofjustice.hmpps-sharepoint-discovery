@@ -8,4 +8,4 @@ discoveryCronJob:
   enabled: true
   sharepoint_discovery_schedule: "*/30 8-17 * * 1-5"
   env:
-    LOG_LEVEL: debug
+    LOG_LEVEL: info

@@ -25,8 +25,10 @@ Optional environment variables
 """
 
 # hmpps-sre-python-lib
+import os
 from hmpps import ServiceCatalogue, Slack, SharePoint
-from hmpps.services.job_log_handling import log_error, log_info, job
+from hmpps.utils.utilities import get_request_proxies
+from hmpps.services.job_log_handling import log_error, log_info, log_warning, job
 
 # Components
 import processes.teams as teams
@@ -37,9 +39,31 @@ import processes.products as products
 
 class Services:
   def __init__(self):
+    _validate_proxy_configuration()
     self.slack = Slack()
     self.sc = ServiceCatalogue()
     self.sp = SharePoint(site_name='PrisonsDigital-DeliveryOperations')
+
+
+def _validate_proxy_configuration():
+  """Validate proxy requirement while using library-managed proxy handling."""
+  allow_no_proxy_local = (
+    os.getenv('ALLOW_NO_PROXY_LOCAL', '').strip().lower() in {'1', 'true', 'yes'}
+  )
+  proxies = get_request_proxies()
+
+  if not proxies:
+    if allow_no_proxy_local:
+      log_warning(
+        'ALLOW_NO_PROXY_LOCAL enabled: running without outbound proxy settings.'
+      )
+      return
+    raise RuntimeError(
+      'Outbound proxy is required. Set HTTPS_PROXY or HTTP_PROXY for this job, '
+      'or set ALLOW_NO_PROXY_LOCAL=true for local testing only.'
+    )
+
+  log_info('Outbound proxy enabled for SharePoint discovery clients.')
 
 
 def log_info_u(message):
