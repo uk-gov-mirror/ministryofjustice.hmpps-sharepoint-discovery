@@ -62,7 +62,6 @@ Optional:
 - `SLACK_NOTIFY_CHANNEL`
 - `SLACK_ALERT_CHANNEL`
 - `LOG_LEVEL` (default: `INFO`)
-- `ALLOW_NO_PROXY_LOCAL` (set to `true` for local testing without proxy)
 
 ## Local Testing Modes
 
@@ -70,7 +69,6 @@ Test without proxy (local only):
 
 ```bash
 unset HTTPS_PROXY HTTP_PROXY NO_PROXY https_proxy http_proxy no_proxy
-export ALLOW_NO_PROXY_LOCAL=true
 uv run python -u sharepoint_discovery.py
 ```
 
