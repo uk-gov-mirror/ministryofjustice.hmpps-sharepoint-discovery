@@ -5,6 +5,7 @@ from datetime import datetime
 from hmpps.services.job_log_handling import (
   log_debug,
   log_error,
+  log_warning,
   log_info,
 )
 
@@ -33,7 +34,7 @@ def fetchID(sp_product, dict, key):
   return sp_product
 
 
-# generic lookup
+# Look for related data in other Sharepoint records
 def link_product_data(sp, sp_product):
   log_debug('Linking product with other Sharepoint data')
   product_id = sp_product.get('fields', {}).get('ProductID', None)
@@ -77,7 +78,7 @@ def link_product_data(sp, sp_product):
         sp.dict[field[2]].get(field_id, {}).get('fields', {}).get(field[3], None)
       )
       if not product_data[field[0]]:
-        log_error(
+        log_warning(
           f'{field[0]} matching {field[1]} not found for product_id: {product_id}'
         )
   return product_data
@@ -90,21 +91,32 @@ def extract_sp_products_data(sp):
       'Extracting SharePoint product data for: '
       f'{sp_product.get("fields", {}).get("ProductID", None)}'
     )
+    sp_product_fields = sp_product.get('fields')
+    if not sp_product_fields or not isinstance(sp_product_fields, dict):
+      log_warning('Invalid product data returned -  ignoring it.')
+      continue
 
-    product_id = sp_product.get('fields', {}).get('ProductID', None)
-    if product_id:
-      if not re.match(r'^.+$', sp_product.get('fields', {}).get('Product')):
-        log_error(f'Invalid name format for product_id: {product_id}')
+    if product_id := sp_product_fields.get('ProductID'):
+      product_name = clean_value(sp_product_fields.get('Product')) or ''
 
-      if not re.match(
-        r'^[A-Z]{3,5}[0-9]{0,5}$', sp_product.get('fields', {}).get('ProductID')
-      ):
-        log_error(f'Invalid productId format for product_id: {product_id}')
+      # Check for a valid (non-empty) product name - otherwise skip it
+      if not product_name:
+        log_warning(
+          f'Invalid name format for product_id: {product_id} ({product_name}'
+          f' - ignoring it.'
+        )
+        continue
+
+      # Check for a valid (alphanumeric) Product ID - otherwise skip it
+      if not re.match(r'^[A-Z]{3,5}[0-9]{0,5}$', product_id):
+        log_warning(
+          f'Invalid ProductID format for product_id: {product_id} - ignoring it.'
+        )
+        continue
 
       # set subproductBool directly from the comparison
       subproductBool = (
-        str(sp_product.get('fields', {}).get('ProductType', '')).strip().lower()
-        == 'subproduct'
+        str(sp_product_fields.get('ProductType', '')).strip().lower() == 'subproduct'
       )
 
       # fetch links to other Sharepoint lists
@@ -112,25 +124,23 @@ def extract_sp_products_data(sp):
 
       sp_product_data = {
         'p_id': product_id,
-        'name': clean_value(sp_product.get('fields', {}).get('Product', None)),
+        'name': product_name,
         'subproduct': subproductBool,
         'description': clean_value(
-          sp_product['fields'].get('Description_x0028_SourceData_x00', None)
+          sp_product_fields.get('Description_x0028_SourceData_x00', None)
         ),
-        'phase': sp_product.get('fields', {}).get('field_7', None),
+        'phase': sp_product_fields.get('field_7', None),
         'slack_channel_id': sp_product.get('fields', {}).get('SlackchannelID', None),
         'portfolio': clean_value(sp_product.get('fields', {}).get('Portfolio', None)),
         'business_owner': clean_value(
-          sp_product.get('fields', {}).get('HMPPSBusinessOwner', None)
+          sp_product_fields.get('HMPPSBusinessOwner', None)
         ),
         'decommissioned': clean_value(
-          str(sp_product.get('fields', {}).get('DecommissionedProduct', ''))
-          .strip()
-          .lower()
+          str(sp_product_fields.get('DecommissionedProduct', '')).strip().lower()
           == 'yes'
         ),
         'decommissioned_date': format_date(
-          sp_product.get('fields', {}).get('DecommissionedEndDate', None)
+          sp_product_fields.get('DecommissionedEndDate', None)
         ),
         # "updated_by_id": 34
       }
